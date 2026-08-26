@@ -20,7 +20,7 @@ public class Url {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "short_code", nullable = false, unique = true, length = 10)
+    @Column(name = "short_code", unique = true, length = 10)
     private String shortCode;
 
     @Lob
@@ -31,7 +31,7 @@ public class Url {
     private String customAlias;
 
     @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id")
     private User user;
 
     @Column(name = "created_at", nullable = false)
