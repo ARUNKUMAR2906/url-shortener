@@ -24,7 +24,7 @@ public class Base62 {
             sb.append(CHARSET.charAt(remainder));
             id = id / BASE;
         }
-
+        while(sb.length() < 7) sb.append(CHARSET.charAt(0));
         return sb.reverse().toString();
     }
 
