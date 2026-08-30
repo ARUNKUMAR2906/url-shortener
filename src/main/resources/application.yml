@@ -12,3 +12,8 @@ spring:
     redis:
       host: 127.0.0.1
       port: 6379
+
+app:
+  base-url: https://short.ly/
+  cache:
+    ttl-hours: 1

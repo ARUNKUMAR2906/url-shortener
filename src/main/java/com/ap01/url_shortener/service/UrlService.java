@@ -6,15 +6,24 @@ import com.ap01.url_shortener.entity.Url;
 import com.ap01.url_shortener.exception.ShortCodeNotFoundException;
 import com.ap01.url_shortener.repository.UrlRepository;
 import com.ap01.url_shortener.utils.Base62;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+
+import java.time.Duration;
 
 @Service
 public class UrlService {
-    private final String baseUrl = "https://short.ly";
+    @Value("${app.base-url}")
+    private String baseUrl;
+    @Value("${app.cache.ttl-hours}")
+    private long cacheExpireTime;
+    private final StringRedisTemplate stringRedisTemplate;
     private final UrlRepository urlRepository;
 
-    public UrlService(UrlRepository urlRepository) {
+    public UrlService(UrlRepository urlRepository, StringRedisTemplate stringRedisTemplate) {
         this.urlRepository = urlRepository;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     public CreateUrlResponse save(CreateUrlRequest request) {
@@ -38,8 +47,27 @@ public class UrlService {
     }
 
     public Url getByShortCode(String shortCode) {
-        return urlRepository.findByShortCode(shortCode)
+        String key = "url:" + shortCode;
+        String cachedUrl = stringRedisTemplate.opsForValue().get(key);
+
+        //check redis
+        if(cachedUrl != null){
+            Url url = new Url();
+            url.setShortCode(shortCode);
+            url.setOriginalUrl(cachedUrl);
+            System.out.println("cache hit");
+            return url;
+        }
+
+        //cache miss -> MySql
+        System.out.println("cache miss");
+        Url url = urlRepository.findByShortCode(shortCode)
                 .orElseThrow(() ->
                         new ShortCodeNotFoundException(shortCode));
+
+        //Put OriginalUrl into redis
+        stringRedisTemplate.opsForValue().set(key, url.getOriginalUrl(), Duration.ofHours(cacheExpireTime));
+        return url;
     }
+
 }
