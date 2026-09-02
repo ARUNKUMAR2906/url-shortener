@@ -3,6 +3,9 @@ package com.ap01.url_shortener.service;
 import com.ap01.url_shortener.dto.request.CreateUrlRequest;
 import com.ap01.url_shortener.dto.response.CreateUrlResponse;
 import com.ap01.url_shortener.entity.Url;
+import com.ap01.url_shortener.enums.ExpirationOption;
+import com.ap01.url_shortener.exception.ShortCodeExpiredException;
+import com.ap01.url_shortener.exception.ShortCodeInactiveException;
 import com.ap01.url_shortener.exception.ShortCodeNotFoundException;
 import com.ap01.url_shortener.repository.UrlRepository;
 import com.ap01.url_shortener.utils.Base62;
@@ -11,6 +14,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 public class UrlService {
@@ -30,6 +35,7 @@ public class UrlService {
         CreateUrlResponse response = new CreateUrlResponse();
         Url url = new Url();
         url.setOriginalUrl(request.getOriginalUrl());
+        url.setExpiresAt(getExpiresAt(request.getExpiration()));
 
         Url savedUrl = urlRepository.save(url);
         Long savedId = savedUrl.getId();
@@ -65,9 +71,66 @@ public class UrlService {
                 .orElseThrow(() ->
                         new ShortCodeNotFoundException(shortCode));
 
+        //checks expiration
+        if (url.getExpiresAt() != null &&
+                !url.getExpiresAt().isAfter(LocalDateTime.now())) {
+            throw new ShortCodeExpiredException(shortCode);
+        }
+        //checks isActive
+        if (!url.getActive()) {
+            throw new ShortCodeInactiveException(shortCode);
+        }
+
         //Put OriginalUrl into redis
-        stringRedisTemplate.opsForValue().set(key, url.getOriginalUrl(), Duration.ofHours(cacheExpireTime));
+        Duration duration = getCacheDuration(url);
+        stringRedisTemplate.opsForValue().set(key, url.getOriginalUrl(), duration);
+
+
         return url;
     }
 
+    public void updateIsActive(String shortCode, boolean isActive) {
+
+        Url url = urlRepository.findByShortCode(shortCode)
+                .orElseThrow(() ->
+                        new ShortCodeNotFoundException(shortCode));
+
+        url.setActive(isActive);
+
+        urlRepository.save(url);
+
+        stringRedisTemplate.delete("url:" + shortCode);
+    }
+
+
+    //private helpers
+    private LocalDateTime getExpiresAt(ExpirationOption expirationOption) {
+            if(expirationOption == null) return null;
+
+            return switch (expirationOption) {
+                case ONE_DAY ->  LocalDateTime.now().plusDays(1);
+                case TWO_DAYS ->  LocalDateTime.now().plusDays(2);
+                case THREE_DAYS ->  LocalDateTime.now().plusDays(3);
+            };
+    }
+
+    private Duration getCacheDuration(Url url) {
+
+        Duration configuredTtl =
+                Duration.ofHours(cacheExpireTime);
+
+        if (url.getExpiresAt() == null) {
+            return configuredTtl;
+        }
+
+        Duration remaining =
+                Duration.between(
+                        LocalDateTime.now(),
+                        url.getExpiresAt()
+                );
+
+        return remaining.compareTo(configuredTtl) < 0
+                ? remaining
+                : configuredTtl;
+    }
 }
