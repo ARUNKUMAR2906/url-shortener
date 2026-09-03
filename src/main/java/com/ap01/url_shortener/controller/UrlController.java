@@ -3,9 +3,11 @@ package com.ap01.url_shortener.controller;
 import com.ap01.url_shortener.dto.request.CreateUrlRequest;
 import com.ap01.url_shortener.dto.request.UpdateUrlStatusRequest;
 import com.ap01.url_shortener.dto.response.CreateUrlResponse;
+import com.ap01.url_shortener.dto.response.UrlAnalyticsResponse;
 import com.ap01.url_shortener.dto.response.UrlResponse;
 import com.ap01.url_shortener.entity.Url;
 import com.ap01.url_shortener.service.UrlService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -31,8 +33,8 @@ public class UrlController {
     }
 
     @GetMapping("/{shortCode}")
-    public ResponseEntity<Void> redirectUrl(@PathVariable String shortCode) {
-        Url url = urlService.getByShortCode(shortCode);
+    public ResponseEntity<Void> redirectUrl(@PathVariable String shortCode, HttpServletRequest request) {
+        Url url = urlService.getByShortCode(shortCode,request);
         return ResponseEntity
                 .status(HttpStatus.FOUND)
                 .location(URI.create(url.getOriginalUrl()))
@@ -69,6 +71,11 @@ public class UrlController {
         );
     }
 
+
+    @GetMapping("/urls/{shortCode}/analytics")
+    public UrlAnalyticsResponse  getUrlAnalytics(@PathVariable String shortCode) {
+        return  urlService.getUrlAnalytics(shortCode);
+    }
 
 
 }

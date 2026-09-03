@@ -1,9 +1,10 @@
 package com.ap01.url_shortener.service;
 
-import ch.qos.logback.core.pattern.Converter;
 import com.ap01.url_shortener.dto.request.CreateUrlRequest;
 import com.ap01.url_shortener.dto.response.CreateUrlResponse;
+import com.ap01.url_shortener.dto.response.UrlAnalyticsResponse;
 import com.ap01.url_shortener.dto.response.UrlResponse;
+import com.ap01.url_shortener.entity.Click;
 import com.ap01.url_shortener.entity.Url;
 import com.ap01.url_shortener.entity.User;
 import com.ap01.url_shortener.enums.ExpirationOption;
@@ -11,9 +12,11 @@ import com.ap01.url_shortener.exception.ShortCodeExpiredException;
 import com.ap01.url_shortener.exception.ShortCodeInactiveException;
 import com.ap01.url_shortener.exception.ShortCodeNotFoundException;
 import com.ap01.url_shortener.exception.UserNotFoundException;
+import com.ap01.url_shortener.repository.ClickRepository;
 import com.ap01.url_shortener.repository.UrlRepository;
 import com.ap01.url_shortener.repository.UserRepository;
 import com.ap01.url_shortener.utils.Base62;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,7 +27,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.function.Function;
 
 @Service
 public class UrlService {
@@ -35,11 +37,13 @@ public class UrlService {
     private final StringRedisTemplate stringRedisTemplate;
     private final UrlRepository urlRepository;
     private final UserRepository userRepository;
+    private final ClickRepository clickRepository;
 
-    public UrlService(UrlRepository urlRepository, StringRedisTemplate stringRedisTemplate, UserRepository userRepository) {
+    public UrlService(UrlRepository urlRepository, StringRedisTemplate stringRedisTemplate, UserRepository userRepository, ClickRepository clickRepository) {
         this.urlRepository = urlRepository;
         this.stringRedisTemplate = stringRedisTemplate;
         this.userRepository = userRepository;
+        this.clickRepository = clickRepository;
     }
 
     public CreateUrlResponse save(CreateUrlRequest request) {
@@ -63,7 +67,7 @@ public class UrlService {
         return response;
     }
 
-    public Url getByShortCode(String shortCode) {
+    public Url getByShortCode(String shortCode, HttpServletRequest request){
         String key = "url:" + shortCode;
         String cachedUrl = stringRedisTemplate.opsForValue().get(key);
 
@@ -73,6 +77,7 @@ public class UrlService {
             url.setShortCode(shortCode);
             url.setOriginalUrl(cachedUrl);
             System.out.println("cache hit");
+            recordClick(url,request);
             return url;
         }
 
@@ -96,7 +101,7 @@ public class UrlService {
         Duration duration = getCacheDuration(url);
         stringRedisTemplate.opsForValue().set(key, url.getOriginalUrl(), duration);
 
-
+        recordClick(url,request);
         return url;
     }
 
@@ -140,22 +145,28 @@ public class UrlService {
         Sort sort = Sort.by(direction,sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Url> urls = urlRepository.findByUser(user, pageable);
-        return urls.map(new Function<Url, UrlResponse>() {
-            @Override
-            public UrlResponse apply(Url url) {
-                UrlResponse response = new UrlResponse();
-                response.setShortCode(url.getShortCode());
-                response.setShortUrl(baseUrl + "/" + url.getShortCode());
-                response.setOriginalUrl(url.getOriginalUrl());
-                response.setCreatedAt(url.getCreatedAt());
-                response.setExpiresAt(url.getExpiresAt());
-                response.setActive(url.getActive());
-                return response;
-            }
+        return urls.map(url -> {
+            UrlResponse response = new UrlResponse();
+            response.setShortCode(url.getShortCode());
+            response.setShortUrl(baseUrl + "/" + url.getShortCode());
+            response.setOriginalUrl(url.getOriginalUrl());
+            response.setCreatedAt(url.getCreatedAt());
+            response.setExpiresAt(url.getExpiresAt());
+            response.setActive(url.getActive());
+            return response;
         });
     }
 
 
+    public UrlAnalyticsResponse getUrlAnalytics(String shortCode) {
+        Url url = urlRepository.findByShortCode(shortCode)
+                .orElseThrow(()->
+                        new ShortCodeNotFoundException(shortCode));
+        UrlAnalyticsResponse response = new UrlAnalyticsResponse();
+        response.setShortCode(shortCode);
+        response.setTotalClicks(clickRepository.countByShortCode(shortCode));
+        return response;
+    }
 
 
     //private helpers methods
@@ -188,4 +199,15 @@ public class UrlService {
                 ? remaining
                 : configuredTtl;
     }
+
+    private void recordClick(Url url,HttpServletRequest request){
+        Click click = new Click();
+        click.setShortCode(url.getShortCode());
+        click.setClickedAt(LocalDateTime.now());
+        click.setIp(request.getRemoteAddr());
+        click.setBrowser(request.getHeader("User-Agent"));
+        click.setReferrer(request.getHeader("Referer"));
+        clickRepository.save(click);
+    }
+
 }
