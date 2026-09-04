@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.Map;
 
 @RestController()
 @RequestMapping("/shortlinks/api")
@@ -77,5 +78,9 @@ public class UrlController {
         return  urlService.getUrlAnalytics(shortCode);
     }
 
+    @GetMapping("/urls/{shortCode}/analytics/browsers")
+    public Map<String,Long> getUrlAnalyticsBrowser(@PathVariable String shortCode) {
+        return urlService.getUrlAnalyticsBrowser(shortCode);
+    }
 
 }

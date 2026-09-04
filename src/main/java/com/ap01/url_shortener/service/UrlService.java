@@ -2,6 +2,7 @@ package com.ap01.url_shortener.service;
 
 import com.ap01.url_shortener.dto.request.CreateUrlRequest;
 import com.ap01.url_shortener.dto.response.CreateUrlResponse;
+import com.ap01.url_shortener.dto.response.UrlAnalyticsBrowserResponse;
 import com.ap01.url_shortener.dto.response.UrlAnalyticsResponse;
 import com.ap01.url_shortener.dto.response.UrlResponse;
 import com.ap01.url_shortener.entity.Click;
@@ -27,6 +28,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class UrlService {
@@ -167,7 +171,16 @@ public class UrlService {
         response.setTotalClicks(clickRepository.countByShortCode(shortCode));
         return response;
     }
-
+    public Map<String,Long> getUrlAnalyticsBrowser(String shortCode) {
+        Url url = urlRepository.findByShortCode(shortCode)
+                .orElseThrow(()->
+                        new ShortCodeNotFoundException(shortCode));
+        List<UrlAnalyticsBrowserResponse> res = clickRepository.findBrowsers(shortCode);
+        return res.stream().collect(Collectors.toMap(
+                UrlAnalyticsBrowserResponse::getBrowser,
+                UrlAnalyticsBrowserResponse::getClicks
+        ));
+    }
 
     //private helpers methods
     private LocalDateTime getExpiresAt(ExpirationOption expirationOption) {
