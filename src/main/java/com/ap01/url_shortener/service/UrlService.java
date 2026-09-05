@@ -1,10 +1,7 @@
 package com.ap01.url_shortener.service;
 
 import com.ap01.url_shortener.dto.request.CreateUrlRequest;
-import com.ap01.url_shortener.dto.response.CreateUrlResponse;
-import com.ap01.url_shortener.dto.response.UrlAnalyticsBrowserResponse;
-import com.ap01.url_shortener.dto.response.UrlAnalyticsResponse;
-import com.ap01.url_shortener.dto.response.UrlResponse;
+import com.ap01.url_shortener.dto.response.*;
 import com.ap01.url_shortener.entity.Click;
 import com.ap01.url_shortener.entity.Url;
 import com.ap01.url_shortener.entity.User;
@@ -27,6 +24,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -171,6 +169,8 @@ public class UrlService {
         response.setTotalClicks(clickRepository.countByShortCode(shortCode));
         return response;
     }
+
+
     public Map<String,Long> getUrlAnalyticsBrowser(String shortCode) {
         Url url = urlRepository.findByShortCode(shortCode)
                 .orElseThrow(()->
@@ -182,6 +182,27 @@ public class UrlService {
         ));
     }
 
+    public Map<String,Long> getUrlAnalyticsReferrer(String shortCode) {
+        Url url = urlRepository.findByShortCode(shortCode)
+                .orElseThrow(()->
+                        new ShortCodeNotFoundException(shortCode));
+        List<UrlAnalyticsReferrerResponse> res = clickRepository.findReferrers(shortCode);
+        return res.stream().collect(Collectors.toMap(
+                UrlAnalyticsReferrerResponse :: getReferrer,
+                UrlAnalyticsReferrerResponse :: getCount
+        ));
+    }
+
+    public Map<LocalDate,Long> getUrlClicksByDate(String shortCode) {
+        Url url = urlRepository.findByShortCode(shortCode)
+                .orElseThrow(() ->
+                        new ShortCodeNotFoundException(shortCode));
+        List<ClicksByDateResponse> res = clickRepository.findClicksByDate(shortCode);
+        return res.stream().collect(Collectors.toMap(
+                ClicksByDateResponse::getClickedAt,
+                ClicksByDateResponse::getCount
+        ));
+    }
     //private helpers methods
     private LocalDateTime getExpiresAt(ExpirationOption expirationOption) {
             if(expirationOption == null) return null;

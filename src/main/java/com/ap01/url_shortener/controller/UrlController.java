@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.Map;
 
 @RestController()
@@ -81,6 +82,16 @@ public class UrlController {
     @GetMapping("/urls/{shortCode}/analytics/browsers")
     public Map<String,Long> getUrlAnalyticsBrowser(@PathVariable String shortCode) {
         return urlService.getUrlAnalyticsBrowser(shortCode);
+    }
+
+    @GetMapping("/urls/{shortCode}/analytics/referrers")
+    public Map<String,Long> getUrlAnalyticsReferrer(@PathVariable String shortCode) {
+        return urlService.getUrlAnalyticsReferrer(shortCode);
+    }
+
+    @GetMapping("/urls/{shortCode}/analytics/clicks")
+    public Map<LocalDate,Long> getUrlClicksByDate(@PathVariable String shortCode) {
+        return urlService.getUrlClicksByDate(shortCode);
     }
 
 }
