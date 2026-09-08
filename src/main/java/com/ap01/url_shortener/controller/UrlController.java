@@ -89,9 +89,13 @@ public class UrlController {
         return urlService.getUrlAnalyticsReferrer(shortCode);
     }
 
-    @GetMapping("/urls/{shortCode}/analytics/clicks")
+    @GetMapping("/urls/{shortCode}/analytics/clicksbydate")
     public Map<LocalDate,Long> getUrlClicksByDate(@PathVariable String shortCode) {
         return urlService.getUrlClicksByDate(shortCode);
+    }
+    @GetMapping("/urls/{shortCode}/analytics/countries")
+    public Map<String,Long> getUrlCountries(@PathVariable String shortCode) {
+        return urlService.getUrlAnalyticsCounty(shortCode);
     }
 
 }

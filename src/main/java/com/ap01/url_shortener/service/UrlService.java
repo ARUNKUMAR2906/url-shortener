@@ -40,12 +40,14 @@ public class UrlService {
     private final UrlRepository urlRepository;
     private final UserRepository userRepository;
     private final ClickRepository clickRepository;
+    private final ClickService clickService;
 
-    public UrlService(UrlRepository urlRepository, StringRedisTemplate stringRedisTemplate, UserRepository userRepository, ClickRepository clickRepository) {
+    public UrlService(UrlRepository urlRepository, StringRedisTemplate stringRedisTemplate, UserRepository userRepository, ClickRepository clickRepository, ClickService clickService) {
         this.urlRepository = urlRepository;
         this.stringRedisTemplate = stringRedisTemplate;
         this.userRepository = userRepository;
         this.clickRepository = clickRepository;
+        this.clickService = clickService;
     }
 
     public CreateUrlResponse save(CreateUrlRequest request) {
@@ -70,16 +72,22 @@ public class UrlService {
     }
 
     public Url getByShortCode(String shortCode, HttpServletRequest request){
+        System.out.println(
+                "redirect thread: " + Thread.currentThread().getName()
+        );
         String key = "url:" + shortCode;
         String cachedUrl = stringRedisTemplate.opsForValue().get(key);
-
+        String ip =  request.getRemoteAddr();
+        String browser = request.getHeader("User-Agent");
+        String referrer = request.getHeader("Referer");
+        String country = request.getLocale().getDisplayCountry();
         //check redis
         if(cachedUrl != null){
             Url url = new Url();
             url.setShortCode(shortCode);
             url.setOriginalUrl(cachedUrl);
             System.out.println("cache hit");
-            recordClick(url,request);
+            clickService.recordClick(url, ip,browser,referrer,country);
             return url;
         }
 
@@ -103,7 +111,7 @@ public class UrlService {
         Duration duration = getCacheDuration(url);
         stringRedisTemplate.opsForValue().set(key, url.getOriginalUrl(), duration);
 
-        recordClick(url,request);
+        clickService.recordClick(url, ip,browser,referrer,country);
         return url;
     }
 
@@ -203,6 +211,17 @@ public class UrlService {
                 ClicksByDateResponse::getCount
         ));
     }
+
+    public Map<String,Long> getUrlAnalyticsCounty(String shortCode) {
+        Url url = urlRepository.findByShortCode(shortCode)
+                .orElseThrow(()->
+                        new ShortCodeNotFoundException(shortCode));
+        List<UrlAnalyticsCountryResponse> res = clickRepository.findCountries(shortCode);
+        return res.stream().collect(Collectors.toMap(
+                UrlAnalyticsCountryResponse::getCountry,
+                UrlAnalyticsCountryResponse::getCount
+        ));
+    }
     //private helpers methods
     private LocalDateTime getExpiresAt(ExpirationOption expirationOption) {
             if(expirationOption == null) return null;
@@ -234,14 +253,5 @@ public class UrlService {
                 : configuredTtl;
     }
 
-    private void recordClick(Url url,HttpServletRequest request){
-        Click click = new Click();
-        click.setShortCode(url.getShortCode());
-        click.setClickedAt(LocalDateTime.now());
-        click.setIp(request.getRemoteAddr());
-        click.setBrowser(request.getHeader("User-Agent"));
-        click.setReferrer(request.getHeader("Referer"));
-        clickRepository.save(click);
-    }
 
 }

@@ -2,6 +2,7 @@ package com.ap01.url_shortener.repository;
 
 import com.ap01.url_shortener.dto.response.ClicksByDateResponse;
 import com.ap01.url_shortener.dto.response.UrlAnalyticsBrowserResponse;
+import com.ap01.url_shortener.dto.response.UrlAnalyticsCountryResponse;
 import com.ap01.url_shortener.dto.response.UrlAnalyticsReferrerResponse;
 import com.ap01.url_shortener.entity.Click;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,4 +32,12 @@ public interface ClickRepository extends JpaRepository<Click, Long> {
             "WHERE c.shortCode = :shortCode" +
             " GROUP BY CAST(c.clickedAt as localdate)")
     List<ClicksByDateResponse> findClicksByDate(@Param("shortCode") String shortCode);
+
+    @Query("""
+                SELECT new com.ap01.url_shortener.dto.response.UrlAnalyticsCountryResponse(c.country,COUNT(c.id))
+                FROM Click c
+                WHERE c.shortCode = :shortCode
+                GROUP BY c.country
+                """)
+    List<UrlAnalyticsCountryResponse> findCountries(@Param("shortCode") String shortCode);
 }
