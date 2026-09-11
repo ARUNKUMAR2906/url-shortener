@@ -2,10 +2,10 @@ package com.ap01.url_shortener.service;
 
 import com.ap01.url_shortener.dto.request.CreateUrlRequest;
 import com.ap01.url_shortener.dto.response.*;
-import com.ap01.url_shortener.entity.Click;
 import com.ap01.url_shortener.entity.Url;
 import com.ap01.url_shortener.entity.User;
 import com.ap01.url_shortener.enums.ExpirationOption;
+import com.ap01.url_shortener.event.ClickEvent;
 import com.ap01.url_shortener.exception.ShortCodeExpiredException;
 import com.ap01.url_shortener.exception.ShortCodeInactiveException;
 import com.ap01.url_shortener.exception.ShortCodeNotFoundException;
@@ -75,19 +75,26 @@ public class UrlService {
         System.out.println(
                 "redirect thread: " + Thread.currentThread().getName()
         );
+        //lookup redis
         String key = "url:" + shortCode;
         String cachedUrl = stringRedisTemplate.opsForValue().get(key);
-        String ip =  request.getRemoteAddr();
-        String browser = request.getHeader("User-Agent");
-        String referrer = request.getHeader("Referer");
-        String country = request.getLocale().getDisplayCountry();
+
+        //extract request props for clickevent
+        ClickEvent event = new ClickEvent();
+        event.setShortCode(shortCode);
+        event.setTime(LocalDateTime.now());
+        event.setIp(request.getRemoteAddr());
+        event.setBrowser(request.getHeader("User-Agent"));
+        event.setReferrer(request.getHeader("Referer"));
+        event.setCountry(request.getLocale().getDisplayCountry());
+
         //check redis
         if(cachedUrl != null){
             Url url = new Url();
             url.setShortCode(shortCode);
             url.setOriginalUrl(cachedUrl);
             System.out.println("cache hit");
-            clickService.recordClick(url, ip,browser,referrer,country);
+            clickService.recordClick(event);
             return url;
         }
 
@@ -111,7 +118,7 @@ public class UrlService {
         Duration duration = getCacheDuration(url);
         stringRedisTemplate.opsForValue().set(key, url.getOriginalUrl(), duration);
 
-        clickService.recordClick(url, ip,browser,referrer,country);
+        clickService.recordClick(event);
         return url;
     }
 
@@ -222,6 +229,9 @@ public class UrlService {
                 UrlAnalyticsCountryResponse::getCount
         ));
     }
+
+
+
     //private helpers methods
     private LocalDateTime getExpiresAt(ExpirationOption expirationOption) {
             if(expirationOption == null) return null;
