@@ -15,6 +15,7 @@ import com.ap01.url_shortener.repository.UrlRepository;
 import com.ap01.url_shortener.repository.UserRepository;
 import com.ap01.url_shortener.utils.Base62;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -50,6 +51,7 @@ public class UrlService {
         this.clickService = clickService;
     }
 
+    @Transactional
     public CreateUrlResponse save(CreateUrlRequest request) {
         CreateUrlResponse response = new CreateUrlResponse();
         Url url = new Url();
@@ -122,6 +124,7 @@ public class UrlService {
         return url;
     }
 
+    @Transactional
     public void updateIsActive(String shortCode, boolean isActive) {
 
         Url url = urlRepository.findByShortCode(shortCode)

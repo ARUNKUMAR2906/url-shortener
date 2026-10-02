@@ -3,6 +3,7 @@ package com.ap01.url_shortener.service;
 import com.ap01.url_shortener.entity.Click;
 import com.ap01.url_shortener.event.ClickEvent;
 import com.ap01.url_shortener.repository.ClickRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +19,7 @@ public class ClickService {
     }
 
     @Async("customTaskExecutor")
+    @Transactional
     public void recordClick(ClickEvent event) {
         System.out.println(
                 "recordClick thread: " + Thread.currentThread().getName()
